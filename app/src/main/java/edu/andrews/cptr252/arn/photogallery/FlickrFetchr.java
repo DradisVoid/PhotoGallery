@@ -49,11 +49,56 @@ public class FlickrFetchr {
             // submit query to flickr and download resulting information
             String xmlString = getUrl(url);
             Log.i(TAG, "Received xml: " + xmlString);
+
+            // create an instance of the xml parser
+            XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
+            XmlPullParser parser = factory.newPullParser();
+            parser.setInput(new StringReader(xmlString));
+
+            // Parse the xml photo elements and create gallery items
+            parseItems(items, parser);
         } catch (IOException ioe) {
             Log.e(TAG, "Failed to catch items", ioe);
+        } catch (XmlPullParserException xppe) {
+            Log.e(TAG, "Failed to parse items", xppe);
         }
 
         return items;
+    }
+
+    /**
+     * Parse photo elements in an XML string one-by-one
+     * @param itemList List of GalleryItems to add to.
+     * Each photo element results in a new GalleryItem
+     * that is added to the list
+     * @param parser XML parser object intialized with string to parse
+     * @throws XmlPullParserException
+     * @throws IOException
+     */
+    void parseItems(ArrayList<GalleryItem> itemList, XmlPullParser parser)
+            throws XmlPullParserException, IOException {
+        int eventType = parser.next();
+        // keep parsing photo elements and converting them to Gallery items
+        // until we reach the end of the XML string.
+        while (eventType != XmlPullParser.END_DOCUMENT) {
+            if (eventType == XmlPullParser.START_TAG &&
+                    XML_PHOTO.equals(parser.getName())) {
+                // Extract image Id
+                String id = parser.getAttributeValue(null, "id");
+                // Extract image Title
+                String caption = parser.getAttributeValue(null, "title");
+                // Extract URL for image Thumbnail
+                String smallUrl = parser.getAttributeValue(null, EXTRA_SMALL_URL);
+                // Create new gallery item for the image
+                GalleryItem item = new GalleryItem();
+                item.setId(id);
+                item.setCaption(caption);
+                item.setUrl(smallUrl);
+                itemList.add(item);
+            }
+            // move to next XML element in the file
+            eventType = parser.next();
+        }
     }
 
     /**
