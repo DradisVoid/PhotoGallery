@@ -2,9 +2,12 @@ package edu.andrews.cptr252.arn.photogallery;
 
 import java.util.ArrayList;
 
+import android.graphics.Bitmap;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v4.app.Fragment;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,6 +16,10 @@ import android.widget.GridView;
 import android.widget.ImageView;
 
 public class PhotoGalleryFragment extends Fragment {
+    private static final String TAG = "PhotoGalleryFragment";
+    /** Thread responsible for downloading thumbnails */
+    ThumbnailDownloader<ImageView> mThumbnailThread;
+
     GridView mGridView;
     ArrayList<GalleryItem> mItems;
 
@@ -35,6 +42,9 @@ public class PhotoGalleryFragment extends Fragment {
             // Specify the image for the image view
             ImageView imageView = convertView.findViewById(R.id.gallery_item_imageView);
             imageView.setImageResource(android.R.drawable.ic_menu_gallery);
+            GalleryItem item = getItem(position);
+            // make thumbnail download request
+            mThumbnailThread.queueThumbnail(imageView, item.getUrl());
 
             return convertView;
         }
@@ -62,6 +72,40 @@ public class PhotoGalleryFragment extends Fragment {
 
         // start AsyncTask running
         new FetchItemsTask().execute();
+
+        // Create a handler for responses from the downloader thread
+        // The handler attaches to the main thread's looper
+        mThumbnailThread = new ThumbnailDownloader<>(new Handler());
+        // Each time a thumbnail finishes downloading, display it
+        mThumbnailThread.setListener(new ThumbnailDownloader.Listener<ImageView>() {
+            @Override
+            public void onThumbnailDownloaded(ImageView imageView, Bitmap thumbnail) {
+                if (isVisible()) {
+                    imageView.setImageBitmap(thumbnail);
+                }
+            }
+        });
+        // start thread running
+        mThumbnailThread.start();
+        // get the looper associated with this thread.
+        // the looper manages the thread's message queue
+        mThumbnailThread.getLooper();
+        Log.i(TAG, "Background thread started");
+    }
+
+    /** Fragment destroyed. Stop download thread. */
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        mThumbnailThread.quit();
+        Log.i(TAG, "Background thread destroyed");
+    }
+
+    /** Fragment view destroyed. Clear download queue */
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        mThumbnailThread.clearQueue();
     }
 
     @Override
